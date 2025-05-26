@@ -1,0 +1,262 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 25% 14%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 25% 18%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 30% 15%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 120 100% 50%;
+    --primary-foreground: 222 25% 14%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 120 100% 50%;
+    --accent-foreground: 222 25% 14%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 120 100% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 222 25% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 120 100% 50%;
+    --sidebar-primary-foreground: 222 25% 14%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 120 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-nerds-darkblue text-foreground;
+  }
+}
+
+/* Custom class for code snippets */
+.code-block {
+  @apply font-mono text-sm bg-black/50 p-4 rounded-md overflow-x-auto border border-nerds-green/20;
+}
+
+/* Progress bar styling */
+.progress-track {
+  @apply bg-nerds-gray h-2 rounded-full overflow-hidden;
+}
+
+.progress-bar {
+  @apply bg-nerds-green h-full rounded-full transition-all duration-300;
+}
+
+/* Badge styling */
+.badge {
+  @apply inline-flex items-center justify-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-beginner {
+  @apply bg-nerds-blue/20 text-nerds-blue;
+}
+
+.badge-intermediate {
+  @apply bg-nerds-green/20 text-nerds-green;
+}
+
+.badge-advanced {
+  @apply bg-nerds-red/20 text-nerds-red;
+}
+
+/* Header Digital Mesh styling */
+.header-digital-mesh {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.digital-mesh-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.digital-mesh-point {
+  transition: opacity 0.5s ease, r 0.5s ease, fill 0.5s ease;
+  filter: drop-shadow(0 0 3px currentColor);
+  mix-blend-mode: screen;
+}
+
+.digital-mesh-line {
+  transition: opacity 0.5s ease, stroke-width 0.5s ease, stroke 0.5s ease;
+  stroke-linecap: round;
+}
+
+/* Matrix-style animation */
+.matrix-rain {
+  font-family: monospace;
+  font-size: 14px;
+  color: #00FF00;
+  opacity: 0.5;
+}
+
+.typing-cursor {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  background-color: #00FF00;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  from, to { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* Enhanced glow effects */
+.text-glow {
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.7);
+}
+
+.box-glow {
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+}
+
+/* Radial gradient for the 3D cyber lab */
+.bg-radial-gradient {
+  background: radial-gradient(circle at center, transparent 0%, rgba(26, 31, 44, 0.8) 70%);
+}
+
+/* Interactive hover effects for the navbar */
+.nav-icon {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.nav-icon:hover {
+  @apply text-nerds-green scale-125 rotate-12;
+}
+
+.nav-link {
+  @apply relative;
+}
+
+.nav-link::after {
+  content: '';
+  @apply absolute left-0 bottom-0 w-0 h-0.5 bg-nerds-green transition-all duration-300;
+}
+
+.nav-link:hover::after {
+  @apply w-full;
+}
+
+/* Button hover effect */
+.pulse-on-hover:hover {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+  }
+}
+
+/* Interactive card hover effects */
+.hover-float {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-float:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 10px 25px -5px rgba(0, 255, 0, 0.3);
+}
+
+/* Cyber trail effect for mouse movement */
+.cyber-trail {
+  pointer-events: none;
+  position: fixed;
+  width: 8px;
+  height: 8px;
+  background-color: rgba(0, 255, 0, 0.7);
+  border-radius: 50%;
+  z-index: 9999;
+  transition: transform 0.1s ease-out, opacity 0.2s ease-out;
+  mix-blend-mode: screen;
+  will-change: transform, opacity, width, height;
+  /* Particle animation */
+  animation: particle-float 1s ease-out forwards;
+}
+
+@keyframes particle-float {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8) rotate(0deg);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2) rotate(180deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(0.5) rotate(360deg);
+  }
+}
+
+/* New: Notification badge animation */
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* New: Search bar transition */
+.search-transition {
+  @apply transition-all duration-300 ease-in-out;
+  width: 0;
+  overflow: hidden;
+}
+
+.search-transition.active {
+  width: 240px;
+}
+
+/* New: Header dropdown animation */
+.header-dropdown {
+  @apply transition-all duration-300 transform origin-top;
+  opacity: 0;
+  transform: scaleY(0.8);
+}
+
+.header-dropdown.open {
+  opacity: 1;
+  transform: scaleY(1);
+}
