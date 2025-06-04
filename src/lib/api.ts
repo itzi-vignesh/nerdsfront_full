@@ -53,9 +53,9 @@ const createAxiosInstance = (baseURL: string): AxiosInstance => {
 
       requestTracker.addRequest();
 
-      // Add user hash if available and if it's a lab deployment request
+      // Add user hash if available
       const userHash = localStorage.getItem('user_hash');
-      if (userHash && config.url?.includes('/api/start-lab') || config.url?.includes('/api/stop-lab') || config.url?.includes('/api/lab-status')) {
+      if (userHash) {
         config.headers['X-User-Hash'] = userHash;
       }
       
@@ -81,7 +81,7 @@ const createAxiosInstance = (baseURL: string): AxiosInstance => {
   // Response interceptor
   instance.interceptors.response.use(
     (response) => response,
-    async (error: AxiosError<{ message?: string }>) => {
+    async (error: AxiosError<{ message?: string; error?: string }>) => {
       if (error.code === 'ECONNABORTED') {
         toast({
           title: "Request timeout",
@@ -112,7 +112,7 @@ const createAxiosInstance = (baseURL: string): AxiosInstance => {
         // Handle other errors
         toast({
           title: "Error",
-          description: error.response?.data?.message || "An unexpected error occurred.",
+          description: error.response?.data?.error || error.response?.data?.message || "An unexpected error occurred.",
           variant: "destructive"
         });
       }
@@ -137,7 +137,7 @@ const extractLabTypeFromId = (labId: string): string => {
 export const authAPI = {
   login: async (username: string, password: string) => {
     try {
-      const response = await authApi.post('/auth/login/', { username, password });
+      const response = await authApi.post('/accounts/login/', { username, password });
       return response.data;
     } catch (error) {
       console.error('Login error:', error);
@@ -147,7 +147,7 @@ export const authAPI = {
 
   register: async (username: string, email: string, password: string, password2: string, first_name: string, last_name: string) => {
     try {
-      const response = await authApi.post('/auth/register/', {
+      const response = await authApi.post('/accounts/register/', {
         username,
         email,
         password,
@@ -155,7 +155,7 @@ export const authAPI = {
         first_name,
         last_name
       });
-      return response;
+      return response.data;
     } catch (error) {
       console.error('Registration error:', error);
       throw error;
@@ -164,7 +164,7 @@ export const authAPI = {
 
   logout: async () => {
     try {
-      await authApi.post('/auth/logout/');
+      await authApi.post('/accounts/logout/');
       localStorage.removeItem('user_hash');
     } catch (error) {
       console.error('Logout error:', error);
@@ -174,7 +174,7 @@ export const authAPI = {
 
   getCurrentUser: async () => {
     try {
-      const response = await authApi.get('/auth/me/');
+      const response = await authApi.get('/accounts/me/');
       return response.data;
     } catch (error) {
       console.error('Get current user error:', error);
@@ -184,7 +184,7 @@ export const authAPI = {
 
   forgotPassword: async (email: string) => {
     try {
-      const response = await authApi.post('/auth/forgot-password/', { email });
+      const response = await authApi.post('/accounts/password-reset/', { email });
       return response.data;
     } catch (error) {
       console.error('Forgot password error:', error);
@@ -194,7 +194,7 @@ export const authAPI = {
 
   resetPassword: async (token: string, newPassword: string) => {
     try {
-      const response = await authApi.post('/auth/reset-password/', {
+      const response = await authApi.post('/accounts/password-reset/confirm/', {
         token,
         new_password: newPassword,
       });
@@ -207,7 +207,7 @@ export const authAPI = {
 
   resendVerification: async (email: string) => {
     try {
-      const response = await authApi.post('/auth/resend-verification/', { email });
+      const response = await authApi.post('/accounts/resend-verification/', { email });
       return response.data;
     } catch (error) {
       console.error('Resend verification error:', error);
@@ -220,8 +220,7 @@ export const authAPI = {
 export const labsAPI = {
   getLab: async (labId: string) => {
     try {
-      // Get lab details from the main backend
-      const response = await authApi.get(`/labs/details/${labId}/`);
+      const response = await labApi.get(`/labs/status/?lab_id=${labId}`);
       return response.data;
     } catch (error) {
       console.error('Get lab error:', error);
@@ -229,32 +228,16 @@ export const labsAPI = {
     }
   },
 
-  restartLab: async (labId: string) => {
-    try {
-      const response = await authApi.post(`/labs/${labId}/restart/`);
-      return response.data;
-    } catch (error) {
-      console.error('Restart lab error:', error);
-      throw error;
-    }
-  }
-};
-
-// Lab API wrapper for lab operations
-export const labsAPIWrapper = {
   startLab: async (labId: string) => {
     try {
       const userHash = localStorage.getItem('user_hash');
       if (!userHash) {
         throw new Error('User hash not found');
       }
-
-      // Send request directly to lab.nerdslab.in for deployment
-      const response = await labApi.post('/api/start-lab/', {
+      const response = await labApi.post('/labs/start/', {
         lab_id: labId,
         user_hash: userHash
       });
-
       return response.data;
     } catch (error) {
       console.error('Start lab error:', error);
@@ -268,13 +251,10 @@ export const labsAPIWrapper = {
       if (!userHash) {
         throw new Error('User hash not found');
       }
-
-      // Send request directly to lab.nerdslab.in for stopping
-      const response = await labApi.post('/api/stop-lab/', {
+      const response = await labApi.post('/labs/stop/', {
         lab_id: labId,
         user_hash: userHash
       });
-
       return response.data;
     } catch (error) {
       console.error('Stop lab error:', error);
@@ -282,12 +262,23 @@ export const labsAPIWrapper = {
     }
   },
 
-  getLabStatus: async (labId: string) => {
+  verifyFlag: async (labId: string, flag: string) => {
     try {
-      // Get status from lab.nerdslab.in
-      const response = await labApi.get('/api/lab-status/');
-      const statusData = response.data;
-      return statusData.find((lab: any) => lab.lab_id === labId) || { status: 'stopped' };
+      const response = await authApi.post('/labs/verify-flag/', {
+        lab_id: labId,
+        flag: flag
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Verify flag error:', error);
+      throw error;
+    }
+  },
+
+  getLabStatus: async () => {
+    try {
+      const response = await authApi.get('/labs/status/');
+      return response.data;
     } catch (error) {
       console.error('Get lab status error:', error);
       throw error;

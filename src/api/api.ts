@@ -69,21 +69,14 @@ const getCsrfToken = (): string | null => {
       }
     }
 
-    // Ensure we're not sending any security headers
-    const securityHeaders = [
-      'x-content-type-options',
-      'x-frame-options',
-      'x-xss-protection',
-      'referrer-policy',
-      'content-security-policy',
-      'strict-transport-security'
-    ];
-    
-    securityHeaders.forEach(header => {
-      if (config.headers[header]) {
-        delete config.headers[header];
-      }
-    });
+    // Add X-Requested-With header for all requests
+    config.headers['X-Requested-With'] = 'XMLHttpRequest';
+
+    // Add X-User-Hash if available
+    const userHash = localStorage.getItem('userHash');
+    if (userHash) {
+      config.headers['X-User-Hash'] = userHash;
+    }
     
     return config;
   });
@@ -108,26 +101,17 @@ const getCsrfToken = (): string | null => {
   );
 });
 
-// Auth API endpoints stay on Server 1
+// Auth API endpoints
 export const authAPI = {
   login: async (username: string, password: string) => {
-    try {
-      // Return the full response, not just the data
-      const response = await authApi.post('/auth/login/', { username, password });
-      return response;
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
-    }
+    return authApi.post('/accounts/login/', { username, password });
   },
   
   logout: async () => {
-    const response = await authApi.post('/auth/logout/');
-    return response.data;
+    return authApi.post('/accounts/logout/');
   },
   
   register: async (username: string, email: string, password: string, password2: string, first_name: string, last_name: string) => {
-    // Ensure all required fields are provided
     const userData = {
       username,
       email, 
@@ -137,43 +121,35 @@ export const authAPI = {
       last_name
     };
     
-    // Return the full response with the token
-    const response = await authApi.post('/auth/register/', userData);
-    return response;
+    return authApi.post('/accounts/register/', userData);
   },
   
   getProfile: async () => {
-    const response = await authApi.get('/auth/me/');
-    return response;
+    return authApi.get('/accounts/me/');
   },
   
   changePassword: async (currentPassword: string, newPassword: string, newPasswordConfirm: string) => {
-    const response = await authApi.post('/auth/change-password/', {
+    return authApi.post('/accounts/change-password/', {
       current_password: currentPassword,
       new_password: newPassword,
       new_password_confirm: newPasswordConfirm
     });
-    return response.data;
   },
 
   forgotPassword: async (email: string) => {
-    const response = await authApi.post('/auth/forgot-password/', { email });
-    return response.data;
+    return authApi.post('/accounts/password-reset/', { email });
   },
 
   resetPassword: async (token: string, password: string, password2: string) => {
-    const response = await authApi.post('/auth/reset-password/', { token, password, password2 });
-    return response;
+    return authApi.post('/accounts/password-reset/confirm/', { token, password, password2 });
   },
 
   verifyEmail: async (token: string) => {
-    const response = await authApi.post('/auth/verify-email/', { token });
-    return response;
+    return authApi.post('/accounts/verify-email/', { token });
   },
 
   resendVerification: async (email: string) => {
-    const response = await authApi.post('/auth/resend-verification/', { email });
-    return response.data;
+    return authApi.post('/accounts/resend-verification/', { email });
   }
 };
 
@@ -183,269 +159,68 @@ const LAB_ID_MAP: Record<string, string> = {
   'feedme-lab': 'lab2'
 };
 
-// Labs API endpoints now point to lab.nerdslab.in
+// Labs API endpoints
 export const labsAPI = {
   getTemplates: async () => {
-    // Return mock data for labs
-    return [
-      {
-        id: "mediconnect-lab",
-        track_id: "track-1",
-        module_id: "module-1",
-        title: "MediConnect Web Application Security",
-        description: "Practice web security testing on a medical records management system. Learn to identify and exploit vulnerabilities in a healthcare application while understanding the importance of securing sensitive medical data.",
-        difficulty: "medium",
-        category: "Web Security",
-        estimated_minutes: 90,
-        points_awarded: 250,
-        lab_type: "docker",
-        docker_image: "lab1-image"
-      },
-      {
-        id: "feedme-lab",
-        track_id: "track-1",
-        module_id: "module-1",
-        title: "FeedMe XSS Challenge",
-        description: "Practice Cross-Site Scripting (XSS) vulnerabilities on a food ordering application. Learn to identify and exploit XSS vulnerabilities while understanding the importance of input validation and output encoding.",
-        difficulty: "medium",
-        category: "Web Security",
-        estimated_minutes: 60,
-        points_awarded: 200,
-        lab_type: "docker",
-        docker_image: "nerdslab/lab2"
-      }
-    ];
+    return authApi.get('/labs/templates/');
   },
   
   getLab: async (labId: string) => {
-    // Return mock data for labs
-    if (labId === 'mediconnect-lab') {
-      return {
-        id: "mediconnect-lab",
-        track_id: "track-1",
-        module_id: "module-1",
-        title: "MediConnect Web Application Security",
-        description: "Practice web security testing on a medical records management system. Learn to identify and exploit vulnerabilities in a healthcare application while understanding the importance of securing sensitive medical data.",
-        difficulty: "medium",
-        category: "Web Security",
-        estimated_minutes: 90,
-        points_awarded: 250,
-        lab_type: "docker",
-        docker_image: "lab1-image",
-        status: "available"
-      };
-    }
-    if (labId === 'feedme-lab') {
-      return {
-        id: "feedme-lab",
-        track_id: "track-1",
-        module_id: "module-1",
-        title: "FeedMe XSS Challenge",
-        description: "Practice Cross-Site Scripting (XSS) vulnerabilities on a food ordering application. Learn to identify and exploit XSS vulnerabilities while understanding the importance of input validation and output encoding.",
-        difficulty: "medium",
-        category: "Web Security",
-        estimated_minutes: 60,
-        points_awarded: 200,
-        lab_type: "docker",
-        docker_image: "nerdslab/lab2",
-        status: "available"
-      };
-    }
-    throw new Error('Lab not found');
+    return authApi.get(`/labs/details/${labId}/`);
   },
   
-  createLabInstance: async (labId: string) => {
-    try {
-      const userHash = localStorage.getItem('user_hash');
-      if (!userHash) {
-        // Try to regenerate the hash from user data
-        const userData = JSON.parse(localStorage.getItem('user') || '{}');
-        if (!userData.id || !userData.username) {
-          throw new Error('User data not found. Please log in again.');
-        }
-        
-        // Generate a new hash
-        const generateHash = (userId: string | number, username: string): string => {
-          const data = `${userId}:${username}:${Date.now()}`;
-          let hash = 0;
-          for (let i = 0; i < data.length; i++) {
-            const char = data.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-          }
-          return Math.abs(hash).toString(36);
-        };
-        
-        const newHash = generateHash(userData.id, userData.username);
-        localStorage.setItem('user_hash', newHash);
-      }
-
-      // Map the lab ID to the correct lab.nerdslab.in ID
-      const mappedLabId = LAB_ID_MAP[labId];
-      if (!mappedLabId) {
-        throw new Error('Invalid lab ID');
-      }
-
-      const response = await fetch('/api/labs/start/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          lab_id: mappedLabId,
-          user_hash: userHash
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 400 && data.error === 'Lab session already exists for this user') {
-          throw new Error('You already have a lab session running. Please stop it before starting a new one.');
-        }
-        throw new Error(data.error || 'Failed to start lab session');
-      }
-
-      return {
-        status: 'success',
-        lab_id: labId,
-        url: data.url,
-        message: data.message,
-        container_created: true
-      };
-    } catch (error) {
-      console.error('Error creating lab instance:', error);
-      throw error;
+  startLab: async (labId: string) => {
+    const userId = localStorage.getItem('userId');
+    const username = localStorage.getItem('username');
+    
+    if (!userId || !username) {
+      throw new Error('User information not found');
     }
+    
+    const userHash = generateHash(userId, username);
+    return authApi.post('/labs/start/', {
+      lab_id: labId,
+          user_hash: userHash
+    });
   },
   
   stopLab: async (labId: string) => {
-    try {
-      const userHash = localStorage.getItem('user_hash');
-      if (!userHash) {
-        throw new Error('User hash not found');
-      }
-
-      // Map the lab ID to the correct lab.nerdslab.in ID
-      const mappedLabId = LAB_ID_MAP[labId];
-      if (!mappedLabId) {
-        throw new Error('Invalid lab ID');
-      }
-
-      const response = await fetch('/api/labs/stop/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          lab_id: mappedLabId,
+    const userId = localStorage.getItem('userId');
+    const username = localStorage.getItem('username');
+    
+    if (!userId || !username) {
+      throw new Error('User information not found');
+    }
+    
+    const userHash = generateHash(userId, username);
+    return authApi.post('/labs/stop/', {
+      lab_id: labId,
           user_hash: userHash
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('No active lab session found');
-        }
-        throw new Error(data.error || 'Failed to stop lab session');
-      }
-
-      return {
-        status: 'success',
-        message: data.message
-      };
-    } catch (error) {
-      console.error('Error stopping lab:', error);
-      throw error;
-    }
-  },
-  
-  restartLab: async (labId: string) => {
-    try {
-      // First stop the lab
-      await labsAPI.stopLab(labId);
-      
-      // Then start it again
-      return await labsAPI.createLabInstance(labId);
-    } catch (error) {
-      console.error('Error restarting lab:', error);
-      throw error;
-    }
+    });
   },
 
   verifyFlag: async (labId: string, flag: string) => {
-    try {
-      const response = await labApi.post('/labs/verify-flag/', {
+    return authApi.post('/labs/verify-flag/', {
         lab_id: labId,
         flag: flag
       });
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
   },
 
   getLabStatus: async () => {
-    try {
-      const response = await labApi.get('/labs/status/');
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
+    return authApi.get('/labs/status/');
   }
 };
 
-// Helper function to create demo lab response
-function createDemoLabResponse(labId: string, hostIp: string = '172.22.160.1') {
-  // Special handling for mediconnect lab
-  if (labId === 'mediconnect-lab') {
-    return {
-      status: 'success',
-      lab_id: labId,
-      url: 'https://lab2.nerdslab.in/',
-      message: 'MediConnect lab instance created successfully.',
-      container_created: true
-    };
+// Helper function to generate user hash
+function generateHash(userId: string | number, username: string): string {
+  const str = `${userId}:${username}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
   }
-
-  // Generate a strong random hash (not easily guessable by humans)
-  const generateRandomHash = (length: number) => {
-    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    const randomValues = new Uint32Array(length);
-    window.crypto.getRandomValues(randomValues);
-    for (let i = 0; i < length; i++) {
-      result += chars[randomValues[i] % chars.length];
-    }
-    return result;
-  };
-
-  // Extract lab name for use in domain
-  const labName = labId.includes('-') ? labId.split('-')[0] : labId;
-  
-  // Generate a random string for the subdomain
-  const randomString = generateRandomHash(8);
-  
-  // Format: <lab_name>-<randomized_string>.labs.nerdslab.in
-  const labDomain = `${labName}-${randomString}.labs.nerdslab.in`;
-  
-  // Create URLs according to required format
-  const domainUrl = `https://${labDomain}`;
-  
-  // Also provide a direct IP URL as backup
-  const portNumber = 8080 + Math.floor(Math.random() * 100); // Randomize port 8080-8179
-  const ipBasedUrl = `http://${hostIp}:${portNumber}`;
-  
-  return {
-    status: 'success',
-    lab_id: labId,
-    url: domainUrl,
-    direct_ip_url: ipBasedUrl,
-    message: 'Lab container created successfully. Use direct IP access if DNS fails.',
-    container_created: true
-  };
+  return Math.abs(hash).toString(36);
 }
 
 export default authApi;

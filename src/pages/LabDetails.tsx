@@ -9,7 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { labsAPI, labsAPIWrapper } from '@/lib/api';
+import { labsAPI } from '@/lib/api';
 import { LabFrame } from '@/components/LabFrame';
 
 interface Lab {
@@ -51,8 +51,8 @@ const LabDetails: React.FC = () => {
         
         // Check if lab is already running
         try {
-          const status = await labsAPIWrapper.getLabStatus(labId!);
-          if (status.status === 'running') {
+          const status = await labsAPI.getLabStatus(labId!);
+          if (status.status === 'running' && status.url) {
             setDeploymentStatus('deployed');
             setDeploymentUrl(status.url);
           }
@@ -80,38 +80,33 @@ const LabDetails: React.FC = () => {
     
     try {
       setDeploymentStatus('deploying');
-      const response = await labsAPIWrapper.startLab(labId);
+      const response = await labsAPI.startLab(labId);
       
-      setDeploymentUrl(response.url);
-      setLab(prev => ({
-        ...prev!,
-        url: response.url,
-        status: 'running'
-      }));
-      setDeploymentStatus('deployed');
-      
-      toast({
-        title: "Lab Deployed",
-        description: "Your lab environment is now running",
-      });
+      if (response.url) {
+        setDeploymentUrl(response.url);
+        setLab(prev => ({
+          ...prev!,
+          url: response.url,
+          status: 'running'
+        }));
+        setDeploymentStatus('deployed');
+        
+        toast({
+          title: "Lab Deployed",
+          description: response.message || "Your lab environment is now running",
+        });
+      } else {
+        throw new Error(response.error || 'Failed to deploy lab');
+      }
     } catch (error: any) {
       console.error('Deployment error:', error);
       setDeploymentStatus('error');
       
-      // Handle specific error cases
-      if (error.response?.data?.error === 'Lab session already exists for this user') {
-        toast({
-          title: "Lab Session Exists",
-          description: "You already have a lab session running. Please stop it first.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Deployment Failed",
-          description: error.response?.data?.error || "Failed to deploy lab. Please try again.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Deployment Failed",
+        description: error.message || "Failed to deploy lab. Please try again.",
+        variant: "destructive",
+      });
     }
   };
   
@@ -122,7 +117,7 @@ const LabDetails: React.FC = () => {
       setDeploymentStatus('deploying');
       const response = await labsAPI.restartLab(labId);
       
-      if (response.status === 'success') {
+      if (response.url) {
         setDeploymentUrl(response.url);
         setLab(prev => ({
           ...prev!,
@@ -133,10 +128,10 @@ const LabDetails: React.FC = () => {
         
         toast({
           title: 'Lab Reset',
-          description: 'Lab environment has been reset successfully',
+          description: response.message || 'Lab environment has been reset successfully',
         });
       } else {
-        throw new Error(response.message || 'Failed to reset lab');
+        throw new Error(response.error || 'Failed to reset lab');
       }
     } catch (error: any) {
       setDeploymentStatus('error');
@@ -152,25 +147,30 @@ const LabDetails: React.FC = () => {
     if (!labId) return;
     
     try {
-      await labsAPIWrapper.stopLab(labId);
-      setDeploymentStatus('idle');
-      setDeploymentUrl(null);
+      const response = await labsAPI.stopLab(labId);
       
-      // Update the lab object
-      setLab(prev => ({
-        ...prev!,
-        status: 'stopped',
-        url: undefined
-      }));
-      
-      toast({
-        title: 'Lab Stopped',
-        description: 'Lab environment has been stopped successfully',
-      });
+      if (response.message) {
+        setDeploymentStatus('idle');
+        setDeploymentUrl(null);
+        
+        // Update the lab object
+        setLab(prev => ({
+          ...prev!,
+          status: 'stopped',
+          url: undefined
+        }));
+        
+        toast({
+          title: 'Lab Stopped',
+          description: response.message,
+        });
+      } else {
+        throw new Error(response.error || 'Failed to stop lab');
+      }
     } catch (error: any) {
       toast({
         title: 'Stop Failed',
-        description: error.response?.data?.error || 'Failed to stop lab. Please try again.',
+        description: error.message || 'Failed to stop lab. Please try again.',
         variant: 'destructive',
       });
     }
