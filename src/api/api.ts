@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
+import { toast } from 'react-hot-toast';
 
 // Configure base URLs based on environment
 export const AUTH_API_URL = import.meta.env.VITE_API_URL || 'https://nerd-api.nerdslab.in';
@@ -21,14 +22,18 @@ const authApi = axios.create({
   withCredentials: true,
   headers: {
     'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
   }
 });
 
 const labApi = axios.create({
-  baseURL: LAB_API_URL,
+  baseURL: import.meta.env.VITE_LAB_API_URL || 'http://localhost:8000',
   withCredentials: true,
   headers: {
     'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
   }
 });
 
@@ -50,11 +55,6 @@ const getCsrfToken = (): string | null => {
 // Add auth token interceptor to both instances
 [authApi, labApi].forEach(api => {
   api.interceptors.request.use(config => {
-    // Set content type for non-GET requests
-    if (config.method !== 'get') {
-      config.headers['Content-Type'] = 'application/json';
-    }
-
     // Add auth token if available
     const token = localStorage.getItem('token');
     if (token) {
@@ -90,6 +90,8 @@ const getCsrfToken = (): string | null => {
           // Clear auth data
           localStorage.removeItem('token');
           localStorage.removeItem('user');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('username');
           
           // Redirect to login with return path
           const returnPath = window.location.pathname;
@@ -104,11 +106,59 @@ const getCsrfToken = (): string | null => {
 // Auth API endpoints
 export const authAPI = {
   login: async (username: string, password: string) => {
-    return authApi.post('/accounts/login/', { username, password });
+    const response = await authApi.post('/accounts/login/', { username, password });
+    return response.data;
   },
   
   logout: async () => {
-    return authApi.post('/accounts/logout/');
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        // If no token, just clear local storage and return
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('username');
+        return { message: 'Logged out successfully' };
+      }
+
+      // First get a new CSRF token
+      await authApi.get('/accounts/csrf/');
+      
+      // Then attempt logout with the token
+      const response = await authApi.post('/accounts/logout/', {}, {
+        headers: {
+          'Authorization': `Token ${token}`,
+          'X-CSRFToken': getCsrfToken() || '',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      // Clear local storage after successful logout
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('username');
+      
+      return response.data;
+    } catch (error) {
+      // Even if the server request fails, clear local storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('username');
+      
+      if (axios.isAxiosError(error)) {
+        // If it's a 403, we can still consider it a successful logout
+        if (error.response?.status === 403) {
+          console.log('Logout request returned 403, but local storage cleared successfully');
+          return { message: 'Logged out successfully' };
+        }
+        console.error('Logout error:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.error || 'Failed to logout');
+      }
+      throw error;
+    }
   },
   
   register: async (username: string, email: string, password: string, password2: string, first_name: string, last_name: string) => {
@@ -121,35 +171,93 @@ export const authAPI = {
       last_name
     };
     
-    return authApi.post('/accounts/register/', userData);
+    const response = await authApi.post('/accounts/register/', userData);
+    return response.data;
   },
   
   getProfile: async () => {
-    return authApi.get('/accounts/me/');
+    const response = await authApi.get('/accounts/me/');
+    return response.data;
   },
   
   changePassword: async (currentPassword: string, newPassword: string, newPasswordConfirm: string) => {
-    return authApi.post('/accounts/change-password/', {
+    const response = await authApi.post('/accounts/change-password/', {
       current_password: currentPassword,
       new_password: newPassword,
       new_password_confirm: newPasswordConfirm
     });
+    return response.data;
   },
 
-  forgotPassword: async (email: string) => {
-    return authApi.post('/accounts/password-reset/', { email });
+  forgotPassword: async (email: string): Promise<void> => {
+    try {
+      console.log('Initiating password reset request for:', email);
+      
+      // First get a fresh CSRF token
+      console.log('Getting fresh CSRF token...');
+      await authApi.get('/accounts/csrf/');
+      
+      // Then make the password reset request
+      console.log('Sending password reset request...');
+      const response = await authApi.post('/accounts/password-reset/', { email });
+      
+      if (response.status === 200) {
+        console.log('Password reset request successful');
+        toast.success('If an account exists with this email, you will receive a password reset link.');
+      } else {
+        console.error('Unexpected response status:', response.status);
+        throw new Error('Failed to send password reset email');
+      }
+    } catch (error) {
+      console.error('Password reset request failed:', error);
+      
+      // If we get a 403, it might be due to CSRF token issues
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 403) {
+          console.log('CSRF token issue detected, retrying with fresh token...');
+          try {
+            await authApi.get('/accounts/csrf/');
+            const retryResponse = await authApi.post('/accounts/password-reset/', { email });
+            
+            if (retryResponse.status === 200) {
+              console.log('Password reset retry successful');
+              toast.success('If an account exists with this email, you will receive a password reset link.');
+              return;
+            }
+          } catch (retryError) {
+            console.error('Password reset retry failed:', retryError);
+            if (axios.isAxiosError(retryError)) {
+              if (retryError.response?.status === 500) {
+                toast.error('Email service is currently unavailable. Please try again later.');
+                return;
+              }
+            }
+          }
+        } else if (error.response?.status === 500) {
+          toast.error('Email service is currently unavailable. Please try again later.');
+          return;
+        }
+      }
+      
+      // Show generic error message to user
+      toast.error('Failed to send password reset email. Please try again later.');
+      throw error;
+    }
   },
 
   resetPassword: async (token: string, password: string, password2: string) => {
-    return authApi.post('/accounts/password-reset/confirm/', { token, password, password2 });
+    const response = await authApi.post('/accounts/password-reset/confirm/', { token, password, password2 });
+    return response.data;
   },
 
   verifyEmail: async (token: string) => {
-    return authApi.post('/accounts/verify-email/', { token });
+    const response = await authApi.post('/accounts/verify-email/', { token });
+    return response.data;
   },
 
   resendVerification: async (email: string) => {
-    return authApi.post('/accounts/resend-verification/', { email });
+    const response = await authApi.post('/accounts/resend-verification/', { email });
+    return response.data;
   }
 };
 
@@ -162,7 +270,8 @@ const LAB_ID_MAP: Record<string, string> = {
 // Labs API endpoints
 export const labsAPI = {
   getTemplates: async () => {
-    return authApi.get('/labs/templates/');
+    const response = await authApi.get('/labs/templates/');
+    return response.data;
   },
   
   getLab: async (labId: string) => {
@@ -178,10 +287,12 @@ export const labsAPI = {
     }
     
     const userHash = generateHash(userId, username);
-    return authApi.post('/labs/start/', {
-      lab_id: labId,
-          user_hash: userHash
+    const mappedLabId = LAB_ID_MAP[labId] || labId;
+    const response = await labApi.post('/api/start-lab/', {
+      lab_id: mappedLabId,
+      user_hash: userHash
     });
+    return response.data;
   },
   
   stopLab: async (labId: string) => {
@@ -193,21 +304,47 @@ export const labsAPI = {
     }
     
     const userHash = generateHash(userId, username);
-    return authApi.post('/labs/stop/', {
-      lab_id: labId,
-          user_hash: userHash
+    const mappedLabId = LAB_ID_MAP[labId] || labId;
+    const response = await labApi.post('/api/stop-lab/', {
+      lab_id: mappedLabId,
+      user_hash: userHash
     });
+    return response.data;
   },
 
   verifyFlag: async (labId: string, flag: string) => {
     return authApi.post('/labs/verify-flag/', {
-        lab_id: labId,
-        flag: flag
-      });
+      lab_id: labId,
+      flag: flag
+    });
   },
 
-  getLabStatus: async () => {
-    return authApi.get('/labs/status/');
+  getLabStatus: async (labId: string) => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const username = localStorage.getItem('username');
+      
+      if (!userId || !username) {
+        throw new Error('User information not found');
+      }
+      
+      const userHash = generateHash(userId, username);
+      const mappedLabId = LAB_ID_MAP[labId] || labId;
+      const response = await labApi.get(`/labs/status/?lab_id=${mappedLabId}`, {
+        headers: {
+          'X-User-Hash': userHash
+        }
+      });
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          return { status: 'not_found', lab_id: labId };
+        }
+        throw new Error(error.response?.data?.error || 'Failed to get lab status');
+      }
+      throw error;
+    }
   }
 };
 
@@ -222,5 +359,70 @@ function generateHash(userId: string | number, username: string): string {
   }
   return Math.abs(hash).toString(36);
 }
+
+// Add interceptors for lab API
+labApi.interceptors.request.use(
+  async (config) => {
+    // Add auth token if available
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // Add CSRF token for non-GET requests
+    if (config.method !== 'get') {
+      const csrfToken = getCsrfToken();
+      if (csrfToken) {
+        config.headers['X-CSRFToken'] = csrfToken;
+      }
+    }
+
+    // Add user hash
+    const userId = localStorage.getItem('userId');
+    const username = localStorage.getItem('username');
+    if (userId && username) {
+      const userHash = generateHash(userId, username);
+      config.headers['X-User-Hash'] = userHash;
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Lab API endpoints
+export const labApiEndpoints = {
+  getLabStatus: async (labId: string) => {
+    try {
+      const response = await labApi.get(`/api/labs/status/?lab_id=${labId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting lab status:', error);
+      throw error;
+    }
+  },
+
+  startLab: async (labId: string) => {
+    try {
+      const response = await labApi.post('/api/labs/start/', { lab_id: labId });
+      return response.data;
+    } catch (error) {
+      console.error('Error starting lab:', error);
+      throw error;
+    }
+  },
+
+  stopLab: async (labId: string) => {
+    try {
+      const response = await labApi.post('/api/labs/stop/', { lab_id: labId });
+      return response.data;
+    } catch (error) {
+      console.error('Error stopping lab:', error);
+      throw error;
+    }
+  }
+};
 
 export default authApi;

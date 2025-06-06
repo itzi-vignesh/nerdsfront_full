@@ -30,15 +30,29 @@ const Labs: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const { labs, loading, error } = useLabs();
   
-  if (loading) return <div className="min-h-screen bg-nerds-darkblue flex items-center justify-center">Loading labs...</div>;
-  if (error) return <div className="min-h-screen bg-nerds-darkblue flex items-center justify-center text-white">
-    <div className="p-4 max-w-md text-center">
-      <p className="text-lg mb-4">Error loading labs: {error}</p>
-      {error.includes('demo lab data') && (
-        <p className="text-sm text-gray-400">Using sample labs for demonstration purposes while the lab service is unavailable.</p>
-      )}
+  if (loading) return <div className="min-h-screen bg-nerds-darkblue flex items-center justify-center text-white">Loading labs...</div>;
+  
+  if (error) return (
+    <div className="min-h-screen bg-nerds-darkblue flex items-center justify-center text-white">
+      <div className="p-4 max-w-md text-center">
+        <p className="text-lg mb-4">Error loading labs: {error}</p>
+        {error.includes('demo lab data') && (
+          <p className="text-sm text-gray-400">Using sample labs for demonstration purposes while the lab service is unavailable.</p>
+        )}
+      </div>
     </div>
-  </div>;
+  );
+  
+  if (!Array.isArray(labs)) {
+    console.error('Invalid labs data:', labs);
+    return (
+      <div className="min-h-screen bg-nerds-darkblue flex items-center justify-center text-white">
+        <div className="p-4 max-w-md text-center">
+          <p className="text-lg mb-4">Error: Invalid labs data format</p>
+        </div>
+      </div>
+    );
+  }
   
   // Separate free and premium labs
   const freeLabs = labs.filter(lab => !lab.isLocked);

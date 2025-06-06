@@ -91,55 +91,10 @@ export const mockLabsData: Lab[] = [
 
 // Hook to fetch lab templates
 export const useLabs = () => {
-  const [labs, setLabs] = useState<Lab[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [labs, setLabs] = useState<Lab[]>(mockLabsData);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { token, isAuthenticated } = useAuth();
 
-  useEffect(() => {
-    const fetchLabs = async () => {
-      if (!isAuthenticated) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        setLoading(true);
-        const labsData = await labsAPI.getTemplates();
-        
-        // Transform server data to match our frontend schema
-        const transformedLabs: Lab[] = labsData.map((lab: any) => ({
-          id: lab.id,
-          trackId: lab.track_id,
-          moduleId: lab.module_id,
-          title: lab.title,
-          description: lab.description,
-          difficulty: lab.difficulty,
-          category: lab.category,
-          estimatedMinutes: lab.estimated_minutes,
-          pointsAwarded: lab.points_awarded,
-          isCompleted: false,
-          isLocked: false,
-          labType: lab.lab_type,
-          dockerImage: lab.docker_image
-        }));
-        
-        setLabs(transformedLabs);
-        setError(null);
-      } catch (err: any) {
-        if (axios.isAxiosError(err) && err.response?.status === 503) {
-          setLabs(mockLabsData);
-          setError('Using demo lab data - Lab service is currently unavailable');
-        } else {
-          setError(err.message || 'Failed to load labs');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLabs();
-  }, [token, isAuthenticated]);
-
+  // No need for useEffect since we're using static data
   return { labs, loading, error };
 };
